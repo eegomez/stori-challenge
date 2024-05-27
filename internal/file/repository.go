@@ -14,7 +14,7 @@ type Repository interface {
 
 func NewRepositoryFactory(cfg *configuration.Config) Repository {
 	if cfg.FileImplementation == awsImplementation {
-		return newAwsRepository(cfg)
+		return newAwsFileRepositoryFactory(cfg)
 	}
 	return newDefaultRepository(cfg)
 }

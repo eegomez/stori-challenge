@@ -2,11 +2,13 @@ package report
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/eegomez/stori-challenge/cmd/api/configuration"
 	"github.com/eegomez/stori-challenge/internal/email"
-	"log"
 )
+
+var ErrParseDate = errors.New("error parsing date")
 
 type UseCase interface {
 	createReport(ctx context.Context) (*Report, error)
@@ -17,30 +19,30 @@ func NewUseCaseFactory(config *configuration.Config) UseCase {
 	return newUseCase(config, NewRepositoryFactory(config), email.NewUseCaseFactory(config))
 }
 
-func newUseCase(config *configuration.Config, repository Repository, emailUsecase email.UseCase) UseCase {
+func newUseCase(config *configuration.Config, repository Repository, emailUC email.UseCase) UseCase {
 	return &useCaseImpl{
-		config:          config,
-		repository:      repository,
-		emailRepository: emailUsecase,
+		config:     config,
+		repository: repository,
+		emailUC:    emailUC,
 	}
 }
 
 type useCaseImpl struct {
-	config          *configuration.Config
-	repository      Repository
-	emailRepository email.UseCase
+	config     *configuration.Config
+	repository Repository
+	emailUC    email.UseCase
 }
 
 func (u useCaseImpl) createReport(ctx context.Context) (*Report, error) {
-	transactions, err := u.repository.ReadCsvTransactionFile(ctx)
+	transactions, err := u.repository.readCsvTransactionFile(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	var totalBalance float64
 	transactionsByMonth := make(map[int]int)
-	var totalDebit float64
-	var totalCredit float64
+	var totalDebit, totalCredit float64
+	var totalDebitTransactions, totalCreditTransactions int
 	var month, day int
 	var totalTransactions int
 
@@ -50,23 +52,24 @@ func (u useCaseImpl) createReport(ctx context.Context) (*Report, error) {
 		}
 		_, err = fmt.Sscanf(t.Date, "%d/%d", &month, &day)
 		if err != nil {
-			log.Println("Error parsing date:", err)
-			return nil, err
+			return nil, ErrParseDate
 		}
 		totalBalance += t.Transaction
 		transactionsByMonth[month] += 1
 		totalTransactions += 1
 		if t.Transaction > 0 {
 			totalCredit += t.Transaction
+			totalCreditTransactions += 1
 		} else {
 			totalDebit += t.Transaction
+			totalDebitTransactions += 1
 		}
 	}
 	return &Report{
 		TotalBalance:        totalBalance,
 		TransactionsByMonth: sortAndReplaceMonths(transactionsByMonth),
-		AverageDebit:        totalDebit / float64(totalTransactions),
-		AverageCredit:       totalCredit / float64(totalTransactions),
+		AverageDebit:        totalDebit / float64(totalDebitTransactions),
+		AverageCredit:       totalCredit / float64(totalCreditTransactions),
 	}, nil
 }
 
@@ -82,7 +85,7 @@ func (u useCaseImpl) SendReport(ctx context.Context, destinationEmailAddress str
 		AverageDebit:            report.AverageDebit,
 		AverageCredit:           report.AverageCredit,
 	}
-	err = u.emailRepository.SendReport(ctx, reportEmail)
+	err = u.emailUC.SendReport(ctx, reportEmail)
 	if err != nil {
 		return err
 	}
