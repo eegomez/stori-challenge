@@ -20,3 +20,4 @@ curl --location 'https://yjizyf69i6.execute-api.us-east-1.amazonaws.com/stori-ch
 - Use AWS Config and AWS Secrets to store config variables instead of getting from environment variables.
 - Improve response message.
 - Fix some methods that are not using the context, it will probably be fixed when fixing logs and error handling.
+- Improve test coverage
