@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"github.com/eegomez/stori-challenge/internal/report"
 	"log"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -45,6 +46,12 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 	cfg := configuration.LoadConfig()
 	log.Printf("Request ID: %s - Configuration loaded: %v", requestID, cfg)
+
+	reportUC := report.NewUseCaseFactory(cfg)
+	err := reportUC.SendReport(ctx, input.DestinationEmailAddress)
+	if err != nil {
+		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Internal server error"}, nil
+	}
 
 	log.Printf("Request ID: %s - Request finished", requestID)
 	return events.APIGatewayProxyResponse{
